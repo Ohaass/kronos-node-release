@@ -1,0 +1,18 @@
+KRONOS Protocol Node — Release Distribution
+Copyright 2026 Oscar Haass (Ohaass)
+
+This product includes software developed by Oscar Haass for the KRONOS Protocol.
+
+Cryptographic primitives:
+- CRYSTALS-Dilithium3 (FIPS 204) via the pqcrypto-dilithium Rust crate
+- SHA3-256 (FIPS 202) via the RustCrypto sha3 crate
+
+The KRONOS Protocol architecture (DAG + PDV + SRP) is covered by the
+Spanish utility model OEPM U202630818 (filed 2026-04). International
+patent protection within the 1-year priority window.
+
+Binaries in this repository are signed with Dilithium3 under domain
+"KRONOS-RELEASE-v1" by the KRONOS Protocol Intermediate Certificate
+Authority. Verify with:
+
+  kros-ca verify-file --in-file <binary> --sig <binary.sig> --bundle trust-bundle.bin
