@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────
-# KRONOS Protocol Node — Installation Script v0.2.0
+# KRONOS Protocol Node — Installation Script v0.2.1
 #
 # Permissioned post-quantum L1 network.
 # Two-phase install:
@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-KRONOS_VERSION="0.2.0"
+KRONOS_VERSION="0.2.1"
 RELEASE_URL="https://github.com/Ohaass/kronos-node-release/releases/download/v${KRONOS_VERSION}"
 TRUST_BUNDLE_URL="https://raw.githubusercontent.com/Ohaass/kronos-node-release/main/trust-bundle.bin"
 TRUST_BUNDLE_SHA256="ef6a28a3fff77229839150ebbd968446e91777c9ba70b72b0e2cb991f19ef893"
@@ -27,9 +27,9 @@ P2P_PORT="9000"
 METRICS_PORT="9100"
 CONTACT_EMAIL="info@kroscripto.com"
 
-INSTALL_DIR="/opt/kronos/v0.2.0"
-CONFIG_DIR="/etc/kronos/v0.2.0"
-DATA_DIR="/var/lib/kronos/v0.2.0"
+INSTALL_DIR="/opt/kronos/v0.2.1"
+CONFIG_DIR="/etc/kronos/v0.2.1"
+DATA_DIR="/var/lib/kronos/v0.2.1"
 SECURE_KEYGEN_OUT="/root/.kronos-keygen-output"   # only root-readable, mode 600
 
 BOOTSTRAP_PEERS=(
@@ -153,6 +153,47 @@ phase_bootstrap() {
   reported_version=$("$INSTALL_DIR/kronos-node" --version 2>/dev/null | tr -d '\n')
   ok "Binary version: $reported_version"
 
+  # ── kros-wallet binary (new in v0.2.1) ───
+  info "Downloading kros-wallet v${KRONOS_VERSION} binary..."
+  download_to "${RELEASE_URL}/kros-wallet-linux-x86_64"     "$INSTALL_DIR/kros-wallet"
+  download_to "${RELEASE_URL}/kros-wallet-linux-x86_64.sig" "$INSTALL_DIR/kros-wallet.sig"
+  chmod 755 "$INSTALL_DIR/kros-wallet"
+
+  info "Verifying kros-wallet binary signature (Dilithium3 + SHA3-256)..."
+  "$INSTALL_DIR/kros-ca" verify-file \
+    --in-file "$INSTALL_DIR/kros-wallet" \
+    --sig     "$INSTALL_DIR/kros-wallet.sig" \
+    --bundle  "$CONFIG_DIR/trust-bundle.bin" \
+    || error "kros-wallet signature verification FAILED. Aborting."
+  ok "kros-wallet verified (Dilithium3 + SHA3-256)"
+
+  # ── Migration: reuse an existing v0.2.0 identity if present ───
+  #
+  # The 4 production Hetzner nodes already have a Dilithium3 identity
+  # and a signed NodeCert from the v0.2.0 install. The cert is signed
+  # by the intermediate over the node's pubkey + node_id + chain_id —
+  # none of which change across the v0.2.0 -> v0.2.1 upgrade. So we
+  # reuse the existing key and cert rather than regenerating identity
+  # (which would require getting a brand-new cert signed).
+  local OLD_CONFIG_DIR="/etc/kronos/v0.2.0"
+  if [ -f "$OLD_CONFIG_DIR/node.key" ] && [ -f "$OLD_CONFIG_DIR/node.cert" ]; then
+    info "Detected existing v0.2.0 identity at $OLD_CONFIG_DIR"
+    info "Migrating key + cert to v0.2.1 (preserving node identity)..."
+    cp "$OLD_CONFIG_DIR/node.key"  "$CONFIG_DIR/node.key"
+    cp "$OLD_CONFIG_DIR/node.cert" "$CONFIG_DIR/node.cert"
+    chmod 600 "$CONFIG_DIR/node.key"
+    chmod 644 "$CONFIG_DIR/node.cert"
+    # Also carry over the cert-request.json for reference if present.
+    if [ -f "$OLD_CONFIG_DIR/cert-request.json" ]; then
+      cp "$OLD_CONFIG_DIR/cert-request.json" "$CONFIG_DIR/cert-request.json"
+    fi
+    ok "Identity migrated from v0.2.0. Skipping keygen + cert-request."
+    warn "This node already has a signed cert — no need to request a new one."
+    warn "Proceed directly to: sudo bash install.sh --finalize $CONFIG_DIR/node.cert"
+    info "(The migrated cert is already in place; --finalize will validate and start the service.)"
+    return 0
+  fi
+
   # ── Generate Dilithium3 keypair ───
   info "Generating Dilithium3 keypair (this is your node's identity)..."
   # Capture full output to a root-only file to avoid leaking SecretKey to terminal
@@ -174,7 +215,7 @@ phase_bootstrap() {
 
   ok "Keypair generated (address: $kros_address)"
 
-  # ── Store private key in PEM format expected by kronos-node v0.2.0 ───
+  # ── Store private key in PEM format expected by kronos-node v0.2.1 ───
   info "Storing private key in PEM format at $CONFIG_DIR/node.key..."
   {
     echo "-----BEGIN KRONOS NODE KEY-----"
@@ -328,6 +369,19 @@ phase_finalize() {
     echo ""
     echo "[trust]"
     echo "bundle_path = \"$CONFIG_DIR/trust-bundle.bin\""
+    echo ""
+    echo "[ledger]"
+    # DAG log MUST be inside DATA_DIR: the systemd unit restricts
+    # writes to ReadWritePaths=$DATA_DIR /var/log. The node's built-in
+    # default (/var/lib/kronos/dag.log) is outside DATA_DIR and would
+    # be blocked by ProtectSystem=strict.
+    echo "log_path = \"$DATA_DIR/dag.log\""
+    echo ""
+    echo "[api]"
+    # Localhost-only HTTP API (balance/info/tx). No auth; do NOT widen
+    # the bind address without a reverse proxy in front. The metrics
+    # port (above) and this API port are distinct.
+    echo "listen_addr = \"127.0.0.1:9101\""
   } > "$CONFIG_DIR/node.toml"
   chmod 600 "$CONFIG_DIR/node.toml"
   ok "node.toml generated"

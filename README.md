@@ -1,6 +1,6 @@
 # KRONOS Protocol — Node Release Distribution
 
-[![Mainnet](https://img.shields.io/badge/Mainnet-v0.2.0-2E86AB?style=for-the-badge)](https://www.kroscripto.com)
+[![Mainnet](https://img.shields.io/badge/Mainnet-v0.2.1-2E86AB?style=for-the-badge)](https://www.kroscripto.com)
 [![Post-Quantum](https://img.shields.io/badge/Dilithium3-FIPS%20204-00A550?style=for-the-badge)](https://csrc.nist.gov/projects/post-quantum-cryptography)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 
@@ -19,12 +19,12 @@ This repository distributes **signed, verifiable binaries** of the KRONOS Protoc
 
 The KRONOS Protocol source code is currently private during the OEPM utility model (`U202630818`) priority window. To allow third-party node operators to participate in the network, this repository publishes:
 
-- **Pre-compiled, signed binaries** of `kronos-node` and `kros-ca`
+- **Pre-compiled, signed binaries** of `kronos-node`, `kros-ca`, and `kros-wallet`
 - The network **trust bundle** (root + intermediate CA public keys)
 - A turnkey **`install.sh`** for Ubuntu 22.04 / 24.04 LTS
 - This **operator handbook**
 
-Every binary in `releases/v0.2.0/` is signed with **Dilithium3 + SHA3-256** by the KRONOS Intermediate Certificate Authority. You can verify them with the `kros-ca` tool included in the same release — a self-consistent, post-quantum verifiable distribution chain.
+Every binary in `releases/v0.2.1/` is signed with **Dilithium3 + SHA3-256** by the KRONOS Intermediate Certificate Authority. You can verify them with the `kros-ca` tool included in the same release — a self-consistent, post-quantum verifiable distribution chain.
 
 ---
 
@@ -51,7 +51,7 @@ sudo bash install.sh
 
 This will:
 
-1. Download and verify the `kronos-node` and `kros-ca` binaries with Dilithium3.
+1. Download and verify the `kronos-node`, `kros-ca`, and `kros-wallet` binaries with Dilithium3.
 2. Generate a fresh Dilithium3 keypair on your machine. Your private key never leaves your server.
 3. Produce a `cert-request.json` ready to email.
 4. Configure UFW (firewall) for SSH + port 9000 between KRONOS peers.
@@ -82,19 +82,22 @@ If you prefer to verify the binaries before running `install.sh`, do it manually
 
 ```bash
 # Download
-curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.0/kronos-node-linux-x86_64       -o kronos-node
-curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.0/kronos-node-linux-x86_64.sig   -o kronos-node.sig
-curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.0/kros-ca-linux-x86_64           -o kros-ca
-curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.0/kros-ca-linux-x86_64.sig       -o kros-ca.sig
+curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.1/kronos-node-linux-x86_64       -o kronos-node
+curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.1/kronos-node-linux-x86_64.sig   -o kronos-node.sig
+curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.1/kros-ca-linux-x86_64           -o kros-ca
+curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.1/kros-ca-linux-x86_64.sig       -o kros-ca.sig
+curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.1/kros-wallet-linux-x86_64       -o kros-wallet
+curl -fsSL https://github.com/Ohaass/kronos-node-release/releases/download/v0.2.1/kros-wallet-linux-x86_64.sig   -o kros-wallet.sig
 curl -fsSL https://raw.githubusercontent.com/Ohaass/kronos-node-release/main/trust-bundle.bin                    -o trust-bundle.bin
 
 # Verify trust bundle SHA256 (the only "trust on first download" step)
 echo "ef6a28a3fff77229839150ebbd968446e91777c9ba70b72b0e2cb991f19ef893  trust-bundle.bin" | sha256sum --check
 
 # Make kros-ca executable, then use it to verify both binaries with Dilithium3
-chmod +x kros-ca kronos-node
+chmod +x kros-ca kronos-node kros-wallet
 ./kros-ca verify-file --in-file kros-ca      --sig kros-ca.sig      --bundle trust-bundle.bin
 ./kros-ca verify-file --in-file kronos-node  --sig kronos-node.sig  --bundle trust-bundle.bin
+./kros-ca verify-file --in-file kros-wallet  --sig kros-wallet.sig  --bundle trust-bundle.bin
 ```
 
 Expected output for each `verify-file`:
@@ -120,7 +123,7 @@ KRONOS uses a closed-CA model. Each node holds a `NodeCert` signed by the Interm
 The full process:
 
 1. You run `install.sh` → it generates a Dilithium3 keypair **on your server**.
-2. Your **private key never leaves the server** (stored at `/etc/kronos/v0.2.0/node.key`, chmod 600).
+2. Your **private key never leaves the server** (stored at `/etc/kronos/v0.2.1/node.key`, chmod 600).
 3. Only the **public key + node metadata** is included in `cert-request.json`.
 4. You email the JSON to `info@kroscripto.com`.
 5. The KRONOS operator verifies the request and signs your `NodeCert` with `kros-ca sign-cert`.
@@ -143,13 +146,16 @@ All signing operations are recorded in the CA `audit.log`.
 ├── trust-bundle.bin           Network trust bundle (root + intermediate pubkeys)
 ├── trust-bundle.bin.sha256    SHA256 of trust bundle
 └── releases/
-    └── v0.2.0/
-        ├── kronos-node-linux-x86_64        Node binary (8.1 MB)
+    └── v0.2.1/
+        ├── kronos-node-linux-x86_64        Node binary (8.4 MB)
         ├── kronos-node-linux-x86_64.sha256
         ├── kronos-node-linux-x86_64.sig    Dilithium3 signature
         ├── kros-ca-linux-x86_64            CA tool / verifier (1.3 MB)
         ├── kros-ca-linux-x86_64.sha256
-        └── kros-ca-linux-x86_64.sig        Dilithium3 signature
+        ├── kros-ca-linux-x86_64.sig        Dilithium3 signature
+        ├── kros-wallet-linux-x86_64        CLI wallet (4.6 MB)
+        ├── kros-wallet-linux-x86_64.sha256
+        └── kros-wallet-linux-x86_64.sig    Dilithium3 signature
 ```
 
 Binaries are also published as GitHub Releases: https://github.com/Ohaass/kronos-node-release/releases
