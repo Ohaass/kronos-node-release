@@ -318,7 +318,6 @@ phase_finalize() {
   [ -f "$CONFIG_DIR/trust-bundle.bin" ] || error "trust-bundle.bin not found — run phase 1 first"
   [ -x "$INSTALL_DIR/kronos-node" ] || error "kronos-node binary not found — run phase 1 first"
   [ -x "$INSTALL_DIR/kros-ca" ] || error "kros-ca binary not found — run phase 1 first"
-  [ -f "$CONFIG_DIR/cert-request.json" ] || error "cert-request.json not found — run phase 1 first"
 
   # ── Verify the cert against the trust bundle BEFORE installing ───
   info "Verifying NodeCert against trust bundle..."
@@ -335,12 +334,34 @@ phase_finalize() {
   chmod 644 "$CONFIG_DIR/node.cert"
   ok "Cert installed at $CONFIG_DIR/node.cert"
 
-  # ── Read node_id / public_ip from cert-request ───
+  # ── Determine node_id and public_ip ───
+  #
+  # Prefer cert-request.json when present (fresh installs). When it's
+  # absent (e.g. a node migrated from v0.2.0 whose cert-request was
+  # not retained), derive node_id from the signed cert itself — it's
+  # an authenticated field — and auto-detect the public IP the same
+  # way bootstrap does.
   local node_id public_ip
-  node_id=$(jq -r '.node_id' "$CONFIG_DIR/cert-request.json")
-  public_ip=$(jq -r '.public_ip' "$CONFIG_DIR/cert-request.json")
-  [ "$node_id" != "null" ] || error "node_id missing from cert-request.json"
-  [ "$public_ip" != "null" ] || public_ip="0.0.0.0"
+  if [ -f "$CONFIG_DIR/cert-request.json" ]; then
+    node_id=$(jq -r '.node_id' "$CONFIG_DIR/cert-request.json")
+    public_ip=$(jq -r '.public_ip' "$CONFIG_DIR/cert-request.json")
+    [ "$node_id" != "null" ] || error "node_id missing from cert-request.json"
+    [ "$public_ip" != "null" ] || public_ip="0.0.0.0"
+  else
+    info "cert-request.json not present — deriving node_id from the cert..."
+    # kros-ca verify prints a line like:  "  Node ID:    kronos-archivo-1"
+    node_id=$("$INSTALL_DIR/kros-ca" verify \
+      --cert "$cert_path" \
+      --bundle "$CONFIG_DIR/trust-bundle.bin" \
+      --chain-id "$CHAIN_ID" 2>/dev/null \
+      | awk -F: '/Node ID:/{gsub(/^[ \t]+|[ \t]+$/,"",$2); print $2; exit}')
+    [ -n "$node_id" ] || error "could not derive node_id from cert"
+    ok "node_id from cert: $node_id"
+    public_ip=$(curl -s -4 --max-time 5 https://api.ipify.org 2>/dev/null \
+                || curl -s -4 --max-time 5 https://ifconfig.me 2>/dev/null \
+                || echo "0.0.0.0")
+    info "public_ip detected: $public_ip"
+  fi
 
   # ── Generate node.toml ───
   info "Generating node.toml..."
