@@ -70,7 +70,7 @@ require_resources() {
   disk_gb=$(df -BG --output=avail / | tail -1 | tr -d 'G ')
   [ "$mem_mb"  -ge 3500 ] || error "Need ≥4 GB RAM (have ${mem_mb} MB)"
   [ "$cores"   -ge    2 ] || error "Need ≥2 CPU cores (have ${cores})"
-  [ "$disk_gb" -ge   35 ] || error "Need ≥40 GB free disk (have ${disk_gb} GB)"
+  [ "$disk_gb" -ge   15 ] || error "Need ≥15 GB free disk (have ${disk_gb} GB)"
   ok "Resources OK — ${mem_mb} MB RAM, ${cores} cores, ${disk_gb} GB free"
 }
 
