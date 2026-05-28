@@ -330,7 +330,14 @@ phase_finalize() {
   ok "NodeCert is valid (signed by intermediate, chain matches)"
 
   # ── Install cert ───
-  cp "$cert_path" "$CONFIG_DIR/node.cert"
+  # In the migration flow the cert is already at the destination
+  # ($CONFIG_DIR/node.cert), so copying it onto itself would error.
+  # Only copy when source and destination actually differ.
+  if [ "$(readlink -f "$cert_path")" != "$(readlink -f "$CONFIG_DIR/node.cert")" ]; then
+    cp "$cert_path" "$CONFIG_DIR/node.cert"
+  else
+    info "Cert is already in place at \$CONFIG_DIR/node.cert (migration)"
+  fi
   chmod 644 "$CONFIG_DIR/node.cert"
   ok "Cert installed at $CONFIG_DIR/node.cert"
 
